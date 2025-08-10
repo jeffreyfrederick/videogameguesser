@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { getRandomGameWithScreenshot } from '@/lib/rawg-api';
 import { Game } from '@/lib/types';
@@ -216,9 +217,9 @@ export default function GameGuesser() {
               <CardDescription className="text-lg">
                 {getScoreMessage()}
               </CardDescription>
-              <div className="text-xs text-muted-foreground mt-2">
+              <Badge variant="secondary" className="mt-2 text-xs">
                 Session: {session.id.slice(0, 8)}...
-              </div>
+              </Badge>
             </CardHeader>
             <CardContent className="text-center space-y-6">
               <div>
@@ -256,9 +257,9 @@ export default function GameGuesser() {
                 <CardDescription>
                   Question {session.currentQuestion} of {MAX_QUESTIONS}
                 </CardDescription>
-                <div className="text-xs text-muted-foreground mt-1">
+                <Badge variant="outline" className="mt-2 font-semibold text-xs">
                   Session: {session.id.slice(0, 8)}...
-                </div>
+                </Badge>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold">{session.score}</div>
