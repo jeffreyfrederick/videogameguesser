@@ -7,11 +7,22 @@ import { Progress } from '@/components/ui/progress';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { getRandomGameWithScreenshot } from '@/lib/rawg-api';
 import { Game } from '@/lib/types';
+import {
+  QuizSession,
+  createNewSession,
+  loadSession,
+  clearSession,
+  updateSessionGameData,
+  submitAnswer,
+  advanceToNextQuestion,
+  validateQuizIntegrity,
+} from '@/lib/quiz-session';
 import Image from 'next/image';
 
 const MAX_QUESTIONS = 5;
 
 export default function GameGuesser() {
+  const [session, setSession] = useState<QuizSession | null>(null);
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [currentScreenshot, setCurrentScreenshot] = useState<string>('');
   const [options, setOptions] = useState<string[]>([]);
@@ -19,12 +30,56 @@ export default function GameGuesser() {
   const [selectedOption, setSelectedOption] = useState<string>('');
   const [showAnswer, setShowAnswer] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [score, setScore] = useState(0);
-  const [currentQuestion, setCurrentQuestion] = useState(1);
-  const [gameComplete, setGameComplete] = useState(false);
   const [error, setError] = useState<string>('');
+  const [sessionLoaded, setSessionLoaded] = useState(false);
 
-  const loadNewGame = async () => {
+  // Initialize or load session on mount
+  useEffect(() => {
+    const existingSession = loadSession();
+    
+    if (existingSession && validateQuizIntegrity(existingSession)) {
+      // Resume existing session
+      setSession(existingSession);
+      
+      if (existingSession.isComplete) {
+        setSessionLoaded(true);
+        return;
+      }
+      
+      // Check if current question has answered
+      const currentIndex = existingSession.currentQuestion - 1;
+      const hasAnswered = existingSession.answers.some(a => a.questionIndex === currentIndex);
+      
+      if (hasAnswered) {
+        setShowAnswer(true);
+        const answer = existingSession.answers.find(a => a.questionIndex === currentIndex);
+        if (answer) {
+          setSelectedOption(answer.selectedOption);
+        }
+      }
+      
+      // Load current question data
+      if (existingSession.gameData[currentIndex]) {
+        const gameData = existingSession.gameData[currentIndex];
+        setCurrentGame(gameData.game);
+        setCurrentScreenshot(gameData.screenshot);
+        setOptions(gameData.options);
+        setCorrectAnswer(gameData.correctAnswer);
+      } else {
+        // Need to load new game data
+        loadGameForCurrentQuestion(existingSession);
+      }
+    } else {
+      // Create new session
+      const newSession = createNewSession();
+      setSession(newSession);
+      loadGameForCurrentQuestion(newSession);
+    }
+    
+    setSessionLoaded(true);
+  }, []);
+
+  const loadGameForCurrentQuestion = async (currentSession: QuizSession) => {
     setLoading(true);
     setError('');
     setShowAnswer(false);
@@ -32,6 +87,12 @@ export default function GameGuesser() {
     
     try {
       const { game, screenshot, options, correctAnswer } = await getRandomGameWithScreenshot();
+      
+      const gameData = { game, screenshot, options, correctAnswer };
+      const currentIndex = currentSession.currentQuestion - 1;
+      const updatedSession = updateSessionGameData(currentSession, currentIndex, gameData);
+      
+      setSession(updatedSession);
       setCurrentGame(game);
       setCurrentScreenshot(screenshot);
       setOptions(options);
@@ -46,39 +107,55 @@ export default function GameGuesser() {
   };
 
   const handleOptionSelect = (option: string) => {
-    if (showAnswer) return;
+    if (!session || showAnswer) return;
     
-    setSelectedOption(option);
-    const isCorrect = option === correctAnswer;
-    
-    if (isCorrect) {
-      setScore(score + 1);
+    try {
+      const updatedSession = submitAnswer(session, option);
+      setSession(updatedSession);
+      setSelectedOption(option);
+      setShowAnswer(true);
+    } catch (err) {
+      console.error('Failed to submit answer:', err);
+      setError('Failed to submit answer. Please try again.');
     }
-    
-    setShowAnswer(true);
   };
 
   const handleNextQuestion = () => {
-    if (currentQuestion >= MAX_QUESTIONS) {
-      setGameComplete(true);
-    } else {
-      setCurrentQuestion(currentQuestion + 1);
-      loadNewGame();
+    if (!session) return;
+    
+    try {
+      const updatedSession = advanceToNextQuestion(session, MAX_QUESTIONS);
+      setSession(updatedSession);
+      
+      if (updatedSession.isComplete) {
+        return; // Will show final score screen
+      }
+      
+      // Load next question
+      loadGameForCurrentQuestion(updatedSession);
+    } catch (err) {
+      console.error('Failed to advance question:', err);
+      setError('Failed to advance to next question.');
     }
   };
 
   const restartGame = () => {
-    setScore(0);
-    setCurrentQuestion(1);
-    setGameComplete(false);
-    setShowAnswer(false);
+    clearSession();
+    const newSession = createNewSession();
+    setSession(newSession);
     setSelectedOption('');
-    loadNewGame();
+    setError('');
+    loadGameForCurrentQuestion(newSession);
   };
 
-  useEffect(() => {
-    loadNewGame();
-  }, []);
+  // Don't render until session is loaded
+  if (!sessionLoaded || !session) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-lg text-muted-foreground">Loading quiz...</div>
+      </div>
+    );
+  }
 
   const testAPI = async () => {
     try {
@@ -101,7 +178,7 @@ export default function GameGuesser() {
         <CardContent>
           <p>{error}</p>
           <div className="space-y-2 mt-4">
-            <Button onClick={loadNewGame} className="w-full">
+            <Button onClick={() => loadGameForCurrentQuestion(session)} className="w-full">
               Try Again
             </Button>
             <Button onClick={testAPI} variant="outline" className="w-full">
@@ -114,8 +191,8 @@ export default function GameGuesser() {
   }
 
   // Final Score Screen
-  if (gameComplete) {
-    const percentage = Math.round((score / MAX_QUESTIONS) * 100);
+  if (session.isComplete) {
+    const percentage = Math.round((session.score / MAX_QUESTIONS) * 100);
     const getScoreMessage = () => {
       if (percentage === 100) return "Perfect! 🏆";
       if (percentage >= 80) return "Excellent! 🌟";
@@ -139,11 +216,14 @@ export default function GameGuesser() {
               <CardDescription className="text-lg">
                 {getScoreMessage()}
               </CardDescription>
+              <div className="text-xs text-muted-foreground mt-2">
+                Session: {session.id.slice(0, 8)}...
+              </div>
             </CardHeader>
             <CardContent className="text-center space-y-6">
               <div>
                 <div className="text-4xl font-bold text-primary mb-2">
-                  {score}/{MAX_QUESTIONS}
+                  {session.score}/{MAX_QUESTIONS}
                 </div>
                 <div className="text-xl text-muted-foreground mb-4">
                   {percentage}% Correct
@@ -151,7 +231,7 @@ export default function GameGuesser() {
                 <Progress value={percentage} className="w-full h-3" />
               </div>
               <Button onClick={restartGame} size="lg" className="w-full">
-                Play Again
+                Start New Quiz
               </Button>
             </CardContent>
           </Card>
@@ -174,16 +254,19 @@ export default function GameGuesser() {
               <div>
                 <CardTitle>Video Game Guesser</CardTitle>
                 <CardDescription>
-                  Question {currentQuestion} of {MAX_QUESTIONS}
+                  Question {session.currentQuestion} of {MAX_QUESTIONS}
                 </CardDescription>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Session: {session.id.slice(0, 8)}...
+                </div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold">{score}</div>
+                <div className="text-2xl font-bold">{session.score}</div>
                 <div className="text-sm text-muted-foreground">Score</div>
               </div>
             </div>
             <Progress 
-              value={(currentQuestion / MAX_QUESTIONS) * 100} 
+              value={(session.currentQuestion / MAX_QUESTIONS) * 100} 
               className="mt-4" 
             />
           </CardHeader>
@@ -255,7 +338,7 @@ export default function GameGuesser() {
                       size="lg"
                       className="w-full"
                     >
-                      {currentQuestion >= MAX_QUESTIONS ? 'View Results' : 'Next Question'}
+                      {session.currentQuestion >= MAX_QUESTIONS ? 'View Results' : 'Next Question'}
                     </Button>
                   </div>
                 )}
