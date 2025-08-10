@@ -29,6 +29,40 @@ interface RAWGScreenshotsResponse {
   results: RAWGScreenshot[];
 }
 
+// Helper function to fetch with retry logic
+async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(10000), // 10 second timeout per request
+      });
+      
+      if (response.ok) {
+        return response;
+      }
+      
+      // If it's a server error (5xx), retry
+      if (response.status >= 500 && response.status < 600) {
+        if (i === retries - 1) throw new Error(`Server error: ${response.status}`);
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+        continue;
+      }
+      
+      // If it's a client error (4xx), don't retry
+      throw new Error(`Client error: ${response.status}`);
+      
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        console.log(`Request timeout, retrying... (attempt ${i + 1}/${retries})`);
+      }
+      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+    }
+  }
+  
+  throw new Error('Max retries exceeded');
+}
+
 export async function GET() {
   try {
     if (!RAWG_API_KEY || RAWG_API_KEY === 'your_rawg_api_key_here') {
@@ -40,12 +74,7 @@ export async function GET() {
     }
 
     // First, get the total count of games to determine the range
-    const countResponse = await fetch(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page_size=1`);
-    
-    if (!countResponse.ok) {
-      console.error('Failed to fetch games count:', countResponse.status, countResponse.statusText);
-      throw new Error('Failed to fetch games count');
-    }
+    const countResponse = await fetchWithRetry(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page_size=1`);
     
     const countData: RAWGResponse = await countResponse.json();
     const totalGames = countData.count;
@@ -53,23 +82,26 @@ export async function GET() {
     
     console.log(`Total games in database: ${totalGames}, Total pages: ${totalPages}`);
     
-    // Generate 5 random page numbers
+    // Generate 5 random page numbers, avoiding very high page numbers that might be slow
+    const maxPage = Math.min(totalPages, 40000); // Limit to first 40k pages for better performance
     const randomPages = new Set<number>();
     while (randomPages.size < 5) {
-      randomPages.add(Math.floor(Math.random() * totalPages) + 1);
+      randomPages.add(Math.floor(Math.random() * maxPage) + 1);
     }
     
     console.log('Fetching games from random pages:', Array.from(randomPages));
     
-    // Fetch games from the random pages
+    // Fetch games from the random pages with retry logic
     const allGames: RAWGGame[] = [];
     const pagePromises = Array.from(randomPages).map(async (page) => {
-      const response = await fetch(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page=${page}&page_size=20`);
-      if (response.ok) {
+      try {
+        const response = await fetchWithRetry(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page=${page}&page_size=20`);
         const data: RAWGResponse = await response.json();
         return data.results;
+      } catch (error) {
+        console.error(`Failed to fetch page ${page}:`, error);
+        return [];
       }
-      return [];
     });
     
     const pageResults = await Promise.all(pagePromises);
@@ -86,27 +118,27 @@ export async function GET() {
     console.log('Selected correct game:', correctGame.name);
     
     // Get screenshots for the correct game
-    const screenshotsResponse = await fetch(`${RAWG_BASE_URL}/games/${correctGame.id}/screenshots?key=${RAWG_API_KEY}`);
-    
     let screenshot: string | null = null;
-    if (screenshotsResponse.ok) {
+    try {
+      const screenshotsResponse = await fetchWithRetry(`${RAWG_BASE_URL}/games/${correctGame.id}/screenshots?key=${RAWG_API_KEY}`);
       const screenshotsData: RAWGScreenshotsResponse = await screenshotsResponse.json();
       if (screenshotsData.results && screenshotsData.results.length > 0) {
         const randomScreenshot = screenshotsData.results[Math.floor(Math.random() * screenshotsData.results.length)];
         screenshot = randomScreenshot.image;
       }
+    } catch (error) {
+      console.log(`Failed to fetch screenshots for ${correctGame.name}:`, error);
     }
     
-    // If no screenshots, skip this game and try another one
+    // If no screenshots, try to find a game with screenshots from the fetched games
     if (!screenshot) {
       console.log(`No screenshots found for ${correctGame.name}, trying another game...`);
       
-      // Try to find a game with screenshots from the fetched games
       for (const game of allGames) {
         if (game.id === correctGame.id) continue;
         
-        const gameScreenshotsResponse = await fetch(`${RAWG_BASE_URL}/games/${game.id}/screenshots?key=${RAWG_API_KEY}`);
-        if (gameScreenshotsResponse.ok) {
+        try {
+          const gameScreenshotsResponse = await fetchWithRetry(`${RAWG_BASE_URL}/games/${game.id}/screenshots?key=${RAWG_API_KEY}`);
           const gameScreenshotsData: RAWGScreenshotsResponse = await gameScreenshotsResponse.json();
           if (gameScreenshotsData.results && gameScreenshotsData.results.length > 0) {
             const randomScreenshot = gameScreenshotsData.results[Math.floor(Math.random() * gameScreenshotsData.results.length)];
@@ -117,6 +149,9 @@ export async function GET() {
             console.log(`Found game with screenshots: ${correctGame.name}`);
             break;
           }
+        } catch (error) {
+          console.log(`Failed to fetch screenshots for ${game.name}:`, error);
+          continue;
         }
       }
     }

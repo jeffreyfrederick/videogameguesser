@@ -33,6 +33,7 @@ export default function GameGuesser() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
 
   // Initialize or load session on mount
   useEffect(() => {
@@ -85,9 +86,17 @@ export default function GameGuesser() {
     setError('');
     setShowAnswer(false);
     setSelectedOption('');
+    setShowTimeoutWarning(false);
+    
+    // Show timeout warning after 10 seconds
+    const timeoutWarning = setTimeout(() => {
+      setShowTimeoutWarning(true);
+    }, 10000);
     
     try {
       const { game, screenshot, options, correctAnswer } = await getRandomGameWithScreenshot();
+      
+      clearTimeout(timeoutWarning);
       
       const gameData = { game, screenshot, options, correctAnswer };
       const currentIndex = currentSession.currentQuestion - 1;
@@ -99,9 +108,24 @@ export default function GameGuesser() {
       setOptions(options);
       setCorrectAnswer(correctAnswer);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load game. Please try again.';
+      clearTimeout(timeoutWarning);
+      console.error('Error loading game:', err);
+      
+      let errorMessage = 'Failed to load game. Please try again.';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('timeout')) {
+          errorMessage = 'Request timed out. The server is taking too long to respond. Please try again.';
+        } else if (err.message.includes('Network error')) {
+          errorMessage = 'Network connection issue. Please check your internet connection and try again.';
+        } else if (err.message.includes('HTTP error')) {
+          errorMessage = `Server error: ${err.message}. Please try again later.`;
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -277,8 +301,24 @@ export default function GameGuesser() {
         <Card>
           <CardContent className="p-6">
             {loading ? (
-              <div className="flex items-center justify-center h-80">
-                <div className="text-lg text-muted-foreground">Loading game...</div>
+              <div className="flex flex-col items-center justify-center h-80 space-y-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <div className="text-lg text-muted-foreground text-center">
+                  <div>Loading random game...</div>
+                  <div className="text-sm mt-2">This may take a few seconds</div>
+                  {showTimeoutWarning && (
+                    <div className="text-amber-600 dark:text-amber-400 mt-3 p-2 bg-amber-50 dark:bg-amber-950/20 rounded-md border border-amber-200 dark:border-amber-800">
+                      ⚠️ Taking longer than expected. You can retry or wait a bit more.
+                    </div>
+                  )}
+                </div>
+                <Button 
+                  onClick={() => loadGameForCurrentQuestion(session)} 
+                  variant="outline" 
+                  size="sm"
+                >
+                  Retry
+                </Button>
               </div>
             ) : currentScreenshot ? (
               <div className="space-y-6">
