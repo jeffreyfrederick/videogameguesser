@@ -1,4 +1,12 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a video game guessing game built with [Next.js](https://nextjs.org) that uses the RAWG API to display random game screenshots for users to guess.
+
+## Setup
+
+1. Get a free API key from [RAWG.io](https://rawg.io/apidocs)
+2. Copy `.env.example` to `.env.local` and add your API key:
+```
+RAWG_API_KEY=your_api_key_here
+```
 
 ## Getting Started
 
