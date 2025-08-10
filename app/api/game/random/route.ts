@@ -3,34 +3,31 @@ import { NextResponse } from 'next/server';
 const RAWG_API_KEY = process.env.RAWG_API_KEY;
 const RAWG_BASE_URL = 'https://api.rawg.io/api';
 
-// Popular games with screenshots - these are guaranteed to have screenshots
-const POPULAR_GAMES = [
-  { id: 3498, name: 'Grand Theft Auto V' },
-  { id: 4200, name: 'Portal 2' },
-  { id: 5286, name: 'Tomb Raider' },
-  { id: 28, name: 'Red Dead Redemption 2' },
-  { id: 58175, name: 'God of War' },
-  { id: 4062, name: 'BioShock Infinite' },
-  { id: 802, name: 'Borderlands 2' },
-  { id: 13537, name: 'The Witcher 3: Wild Hunt' },
-  { id: 1030, name: 'Limbo' },
-  { id: 17540, name: 'Injustice: Gods Among Us' },
-  { id: 11859, name: 'Team Fortress 2' },
-  { id: 3939, name: 'PAYDAY 2' },
-  { id: 4291, name: 'Counter-Strike: Global Offensive' },
-  { id: 5563, name: 'Fallout: New Vegas' },
-  { id: 278, name: 'Horizon Zero Dawn' },
-  { id: 1447, name: 'Deus Ex: Human Revolution' },
-  { id: 19709, name: 'Half-Life 2' },
-  { id: 5679, name: 'The Elder Scrolls V: Skyrim' },
-  { id: 4166, name: 'Mass Effect 2' },
-  { id: 41494, name: 'Cyberpunk 2077' },
-  { id: 3070, name: 'Fallout 4' },
-  { id: 1030, name: 'Left 4 Dead 2' },
-  { id: 5583, name: 'Hitman: Absolution' },
-  { id: 4286, name: 'Bioshock' },
-  { id: 11936, name: 'Minecraft' },
-];
+interface RAWGGame {
+  id: number;
+  name: string;
+  background_image: string;
+  slug: string;
+}
+
+interface RAWGResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: RAWGGame[];
+}
+
+interface RAWGScreenshot {
+  id: number;
+  image: string;
+}
+
+interface RAWGScreenshotsResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: RAWGScreenshot[];
+}
 
 export async function GET() {
   try {
@@ -42,58 +39,118 @@ export async function GET() {
       );
     }
 
-    // Pick a random game from our curated list
-    const correctGame = POPULAR_GAMES[Math.floor(Math.random() * POPULAR_GAMES.length)];
+    // First, get the total count of games to determine the range
+    const countResponse = await fetch(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page_size=1`);
     
-    console.log('Fetching game details for:', correctGame.name);
-    
-    // Get game details
-    const gameResponse = await fetch(`${RAWG_BASE_URL}/games/${correctGame.id}?key=${RAWG_API_KEY}`);
-    
-    if (!gameResponse.ok) {
-      console.error('Failed to fetch game details:', gameResponse.status, gameResponse.statusText);
-      throw new Error('Failed to fetch game details');
+    if (!countResponse.ok) {
+      console.error('Failed to fetch games count:', countResponse.status, countResponse.statusText);
+      throw new Error('Failed to fetch games count');
     }
     
-    const game = await gameResponse.json();
-    console.log('Fetched game:', game.name);
+    const countData: RAWGResponse = await countResponse.json();
+    const totalGames = countData.count;
+    const totalPages = Math.ceil(totalGames / 20); // RAWG API uses 20 games per page by default
     
-    // Get screenshots for this game
+    console.log(`Total games in database: ${totalGames}, Total pages: ${totalPages}`);
+    
+    // Generate 5 random page numbers
+    const randomPages = new Set<number>();
+    while (randomPages.size < 5) {
+      randomPages.add(Math.floor(Math.random() * totalPages) + 1);
+    }
+    
+    console.log('Fetching games from random pages:', Array.from(randomPages));
+    
+    // Fetch games from the random pages
+    const allGames: RAWGGame[] = [];
+    const pagePromises = Array.from(randomPages).map(async (page) => {
+      const response = await fetch(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page=${page}&page_size=20`);
+      if (response.ok) {
+        const data: RAWGResponse = await response.json();
+        return data.results;
+      }
+      return [];
+    });
+    
+    const pageResults = await Promise.all(pagePromises);
+    pageResults.forEach(games => allGames.push(...games));
+    
+    console.log(`Fetched ${allGames.length} games from random pages`);
+    
+    if (allGames.length === 0) {
+      throw new Error('No games could be fetched from the random pages');
+    }
+    
+    // Randomly select one game as the correct answer
+    const correctGame = allGames[Math.floor(Math.random() * allGames.length)];
+    console.log('Selected correct game:', correctGame.name);
+    
+    // Get screenshots for the correct game
     const screenshotsResponse = await fetch(`${RAWG_BASE_URL}/games/${correctGame.id}/screenshots?key=${RAWG_API_KEY}`);
     
-    let screenshot;
+    let screenshot: string | null = null;
     if (screenshotsResponse.ok) {
-      const screenshotsData = await screenshotsResponse.json();
+      const screenshotsData: RAWGScreenshotsResponse = await screenshotsResponse.json();
       if (screenshotsData.results && screenshotsData.results.length > 0) {
         const randomScreenshot = screenshotsData.results[Math.floor(Math.random() * screenshotsData.results.length)];
         screenshot = randomScreenshot.image;
       }
     }
     
-    // Fallback to background image
-    if (!screenshot && game.background_image) {
-      screenshot = game.background_image;
+    // If no screenshots, skip this game and try another one
+    if (!screenshot) {
+      console.log(`No screenshots found for ${correctGame.name}, trying another game...`);
+      
+      // Try to find a game with screenshots from the fetched games
+      for (const game of allGames) {
+        if (game.id === correctGame.id) continue;
+        
+        const gameScreenshotsResponse = await fetch(`${RAWG_BASE_URL}/games/${game.id}/screenshots?key=${RAWG_API_KEY}`);
+        if (gameScreenshotsResponse.ok) {
+          const gameScreenshotsData: RAWGScreenshotsResponse = await gameScreenshotsResponse.json();
+          if (gameScreenshotsData.results && gameScreenshotsData.results.length > 0) {
+            const randomScreenshot = gameScreenshotsData.results[Math.floor(Math.random() * gameScreenshotsData.results.length)];
+            screenshot = randomScreenshot.image;
+            correctGame.id = game.id;
+            correctGame.name = game.name;
+            correctGame.background_image = game.background_image;
+            console.log(`Found game with screenshots: ${correctGame.name}`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // If still no screenshots, use background image as fallback
+    if (!screenshot && correctGame.background_image) {
+      screenshot = correctGame.background_image;
+      console.log(`Using background image for ${correctGame.name}`);
     }
     
     if (!screenshot) {
-      throw new Error('No screenshots available for this game');
+      throw new Error('No screenshots or background images available for any of the fetched games');
     }
     
-    // Generate 5 random incorrect options
-    const incorrectOptions = POPULAR_GAMES
+    // Generate incorrect options from the other fetched games
+    const incorrectOptions = allGames
       .filter(g => g.id !== correctGame.id)
       .sort(() => Math.random() - 0.5)
       .slice(0, 5)
       .map(g => g.name);
     
     // Create all options and shuffle them
-    const allOptions = [game.name, ...incorrectOptions].sort(() => Math.random() - 0.5);
+    const allOptions = [correctGame.name, ...incorrectOptions].sort(() => Math.random() - 0.5);
     
     return NextResponse.json({
-      game,
+      game: {
+        id: correctGame.id,
+        name: correctGame.name,
+        background_image: correctGame.background_image,
+        slug: correctGame.slug
+      },
       screenshot,
       options: allOptions,
-      correctAnswer: game.name
+      correctAnswer: correctGame.name
     });
     
   } catch (error) {
