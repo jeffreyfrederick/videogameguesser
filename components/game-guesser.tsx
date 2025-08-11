@@ -277,7 +277,7 @@ export default function GameGuesser() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Video Game Guesser</CardTitle>
+                <CardTitle>Video Game Guesser<Badge variant="destructive" className="ml-2 font-bold text-xs">Alpha</Badge></CardTitle>
                 <CardDescription>
                   Question {session.currentQuestion} of {MAX_QUESTIONS}
                 </CardDescription>
@@ -342,7 +342,7 @@ export default function GameGuesser() {
                         <Button
                           key={index}
                           variant="outline"
-                          className="h-auto py-3 px-4 text-left justify-start"
+                          className="h-auto py-3 px-4 text-left justify-start cursor-pointer"
                           onClick={() => handleOptionSelect(option)}
                         >
                           <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.</span>

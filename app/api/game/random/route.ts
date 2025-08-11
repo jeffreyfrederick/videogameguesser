@@ -123,8 +123,8 @@ export async function GET() {
       const screenshotsResponse = await fetchWithRetry(`${RAWG_BASE_URL}/games/${correctGame.id}/screenshots?key=${RAWG_API_KEY}`);
       const screenshotsData: RAWGScreenshotsResponse = await screenshotsResponse.json();
       if (screenshotsData.results && screenshotsData.results.length > 0) {
-        const randomScreenshot = screenshotsData.results[Math.floor(Math.random() * screenshotsData.results.length)];
-        screenshot = randomScreenshot.image;
+        const lastScreenshot = screenshotsData.results[screenshotsData.results.length - 1];
+        screenshot = lastScreenshot.image;
       }
     } catch (error) {
       console.log(`Failed to fetch screenshots for ${correctGame.name}:`, error);
@@ -141,8 +141,8 @@ export async function GET() {
           const gameScreenshotsResponse = await fetchWithRetry(`${RAWG_BASE_URL}/games/${game.id}/screenshots?key=${RAWG_API_KEY}`);
           const gameScreenshotsData: RAWGScreenshotsResponse = await gameScreenshotsResponse.json();
           if (gameScreenshotsData.results && gameScreenshotsData.results.length > 0) {
-            const randomScreenshot = gameScreenshotsData.results[Math.floor(Math.random() * gameScreenshotsData.results.length)];
-            screenshot = randomScreenshot.image;
+            const lastScreenshot = gameScreenshotsData.results[gameScreenshotsData.results.length - 1];
+            screenshot = lastScreenshot.image;
             correctGame.id = game.id;
             correctGame.name = game.name;
             correctGame.background_image = game.background_image;
