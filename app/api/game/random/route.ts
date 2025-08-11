@@ -73,49 +73,30 @@ export async function GET() {
       );
     }
 
-    // First, get the total count of games to determine the range
-    const countResponse = await fetchWithRetry(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page_size=1`);
+    // Generate a random year between 1990 and 2024
+    const randomYear = Math.floor(Math.random() * (2024 - 1990 + 1)) + 1990;
+    const startDate = `${randomYear}-01-01`;
+    const endDate = `${randomYear}-12-31`;
     
-    const countData: RAWGResponse = await countResponse.json();
-    const totalGames = countData.count;
-    const totalPages = Math.ceil(totalGames / 20); // RAWG API uses 20 games per page by default
+    console.log(`Fetching games from year ${randomYear} (${startDate} to ${endDate}) ordered by rating`);
     
-    console.log(`Total games in database: ${totalGames}, Total pages: ${totalPages}`);
+    // Fetch games from the random year, ordered by rating (highest first)
+    const response = await fetchWithRetry(
+      `${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&dates=${startDate},${endDate}&ordering=-rating&page_size=20`
+    );
     
-    // Generate 10 random page numbers, avoiding very high page numbers that might be slow
-    const maxPage = Math.min(totalPages, 40000); // Limit to first 40k pages for better performance
-    const randomPages = new Set<number>();
-    while (randomPages.size < 10) {
-      randomPages.add(Math.floor(Math.random() * maxPage) + 1);
-    }
+    const data: RAWGResponse = await response.json();
+    const allGames = data.results;
     
-    console.log('Fetching games from 10 random pages:', Array.from(randomPages));
-    
-    // Fetch games from the random pages with retry logic
-    const allGames: RAWGGame[] = [];
-    const pagePromises = Array.from(randomPages).map(async (page) => {
-      try {
-        const response = await fetchWithRetry(`${RAWG_BASE_URL}/games?key=${RAWG_API_KEY}&page=${page}&page_size=20`);
-        const data: RAWGResponse = await response.json();
-        return data.results;
-      } catch (error) {
-        console.error(`Failed to fetch page ${page}:`, error);
-        return [];
-      }
-    });
-    
-    const pageResults = await Promise.all(pagePromises);
-    pageResults.forEach(games => allGames.push(...games));
-    
-    console.log(`Fetched ${allGames.length} games from random pages`);
+    console.log(`Fetched ${allGames.length} games from ${randomYear} ordered by rating`);
     
     if (allGames.length === 0) {
-      throw new Error('No games could be fetched from the random pages');
+      throw new Error(`No games found for year ${randomYear}`);
     }
     
-    // Randomly select one game as the correct answer
+    // Randomly select one game from the first page of results
     const correctGame = allGames[Math.floor(Math.random() * allGames.length)];
-    console.log('Selected correct game:', correctGame.name);
+    console.log(`Selected correct game from ${randomYear}: ${correctGame.name}`);
     
     // Get screenshots for the correct game
     let screenshot: string | null = null;
