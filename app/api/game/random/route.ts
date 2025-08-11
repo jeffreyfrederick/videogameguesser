@@ -82,14 +82,14 @@ export async function GET() {
     
     console.log(`Total games in database: ${totalGames}, Total pages: ${totalPages}`);
     
-    // Generate 5 random page numbers, avoiding very high page numbers that might be slow
+    // Generate 10 random page numbers, avoiding very high page numbers that might be slow
     const maxPage = Math.min(totalPages, 40000); // Limit to first 40k pages for better performance
     const randomPages = new Set<number>();
-    while (randomPages.size < 5) {
+    while (randomPages.size < 10) {
       randomPages.add(Math.floor(Math.random() * maxPage) + 1);
     }
     
-    console.log('Fetching games from random pages:', Array.from(randomPages));
+    console.log('Fetching games from 10 random pages:', Array.from(randomPages));
     
     // Fetch games from the random pages with retry logic
     const allGames: RAWGGame[] = [];

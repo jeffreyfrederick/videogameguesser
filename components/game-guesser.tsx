@@ -20,7 +20,7 @@ import {
 } from '@/lib/quiz-session';
 import Image from 'next/image';
 
-const MAX_QUESTIONS = 5;
+const MAX_QUESTIONS = 10;
 
 export default function GameGuesser() {
   const [session, setSession] = useState<QuizSession | null>(null);
