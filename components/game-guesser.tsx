@@ -353,16 +353,6 @@ export default function GameGuesser() {
                         </Button>
                       ))}
                     </div>
-                    <div className="text-center pt-4">
-                      <a 
-                        href="https://rawg.io" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Powered by RAWG API
-                      </a>
-                    </div>
                   </div>
                 )}
 

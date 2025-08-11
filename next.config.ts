@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/media/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.igdb.com',
+        port: '',
+        pathname: '/igdb/image/upload/**',
+      },
     ],
   },
 };
