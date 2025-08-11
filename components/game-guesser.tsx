@@ -404,6 +404,18 @@ export default function GameGuesser() {
             )}
           </CardContent>
         </Card>
+        
+        {/* Donate QR Code */}
+        <div className="text-center">
+          <p className="text-sm text-muted-foreground mb-2">Buy a broke, bald man a coffee!</p>
+          <Image
+            src="/qrcode.png"
+            alt="Donate QR Code"
+            width={160}
+            height={160}
+            className="mx-auto rounded-lg border border-border/50"
+          />
+        </div>
       </div>
     </div>
   );
