@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRandomGameWithScreenshot } from '@/lib/csv-games';
+import { getRandomGameWithScreenshot } from '@/lib/curated-games-loader';
 
 export async function GET() {
   try {
