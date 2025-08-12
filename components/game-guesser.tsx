@@ -275,9 +275,6 @@ export default function GameGuesser() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-2xl">Video Game Guesser<Badge variant="destructive" className="ml-2 font-bold text-xs">Alpha</Badge></CardTitle>
-                <p className="text-sm text-muted-foreground mt-1 mb-2">
-                  Explore and test your knowledge on the highest rated video games in history!
-                </p>
                 <CardDescription>
                   Question {session.currentQuestion} of {MAX_QUESTIONS}
                 </CardDescription>
