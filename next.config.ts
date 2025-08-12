@@ -5,12 +5,6 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'media.rawg.io',
-        port: '',
-        pathname: '/media/**',
-      },
-      {
-        protocol: 'https',
         hostname: 'images.igdb.com',
         port: '',
         pathname: '/igdb/image/upload/**',

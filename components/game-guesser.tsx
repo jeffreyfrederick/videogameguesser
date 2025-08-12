@@ -6,7 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { getRandomGameWithScreenshot } from '@/lib/rawg-api';
+import confetti from 'canvas-confetti';
+import { ShineBorder } from '@/components/magicui/shine-border';
+import { getRandomGameWithScreenshot } from '@/lib/curated-games-loader';
 import { Game } from '@/lib/types';
 import {
   QuizSession,
@@ -139,6 +141,15 @@ export default function GameGuesser() {
       setSession(updatedSession);
       setSelectedOption(option);
       setShowAnswer(true);
+      
+      // Trigger confetti if the answer is correct
+      if (option === correctAnswer) {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
     } catch (err) {
       console.error('Failed to submit answer:', err);
       setError('Failed to submit answer. Please try again.');
@@ -182,17 +193,6 @@ export default function GameGuesser() {
     );
   }
 
-  const testAPI = async () => {
-    try {
-      const response = await fetch('/api/test');
-      const data = await response.json();
-      console.log('API Test Result:', data);
-      alert(JSON.stringify(data, null, 2));
-    } catch (err) {
-      console.error('Test failed:', err);
-      alert('Test failed: ' + String(err));
-    }
-  };
 
   if (error) {
     return (
@@ -205,9 +205,6 @@ export default function GameGuesser() {
           <div className="space-y-2 mt-4">
             <Button onClick={() => loadGameForCurrentQuestion(session)} className="w-full">
               Try Again
-            </Button>
-            <Button onClick={testAPI} variant="outline" className="w-full">
-              Test API Connection
             </Button>
           </div>
         </CardContent>
@@ -301,8 +298,14 @@ export default function GameGuesser() {
         </Card>
 
         {/* Game Card */}
-        <Card>
-          <CardContent className="p-6">
+        <div className="relative rounded-lg bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 p-0.5">
+          <ShineBorder
+            shineColor={["#A07CFE", "#FE8FB5", "#FFBE7B"]}
+            borderWidth={2}
+            duration={10}
+          />
+          <Card className="relative rounded-lg bg-card border-0">
+            <CardContent className="p-6">
             {loading ? (
               <div className="flex flex-col items-center justify-center h-80 space-y-4">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -392,8 +395,9 @@ export default function GameGuesser() {
                 <div className="text-lg text-muted-foreground">No screenshot available</div>
               </div>
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
         
         {/* Donate QR Code */}
         <div className="text-center">
