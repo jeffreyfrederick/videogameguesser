@@ -47,7 +47,7 @@ function parseGenres(genresStr: string): string[] {
     
     const parsed = JSON.parse(cleaned);
     return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
+  } catch {
     // Fallback: extract genres manually if JSON parsing fails
     const matches = genresStr.match(/'([^']+)'/g);
     return matches ? matches.map(match => match.replace(/'/g, '')) : [];
@@ -68,14 +68,6 @@ function normalizeGenre(genre: string): string {
   };
   
   return normalizations[genre] || genre;
-}
-
-// Check if two games share at least one genre
-function hasMatchingGenre(game1: CuratedGame, game2: CuratedGame): boolean {
-  const genres1 = parseGenres(game1.genres).map(normalizeGenre);
-  const genres2 = parseGenres(game2.genres).map(normalizeGenre);
-  
-  return genres1.some(g1 => genres2.includes(g1));
 }
 
 // Get games that match genre and are within year range
